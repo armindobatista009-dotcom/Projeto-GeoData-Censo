@@ -25,3 +25,8 @@ data/Agregados_por_setores_demografia_MANAUS.xlsx
 
 # Ignorar dados brutos (CSV, etc.) para evitar commits grandes
 data/
+
+# Exceção: banco SQLite monitorado via Git LFS
+!data/geodata.db
+!data/geodata.db-shm
+!data/geodata.db-wal
