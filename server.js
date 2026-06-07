@@ -41,6 +41,17 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 const dbPath = path.join(__dirname, 'data', 'geodata.db');
+const gzPath = dbPath + '.gz';
+
+// Decompress DB se necessário (deploy sem LFS)
+if (!fs.existsSync(dbPath) && fs.existsSync(gzPath)) {
+    console.log(' Descomprimindo banco de dados...');
+    const zlib = require('zlib');
+    const buf = fs.readFileSync(gzPath);
+    fs.writeFileSync(dbPath, zlib.gunzipSync(buf));
+    console.log(' Banco descomprimido:', (fs.statSync(dbPath).size / 1024 / 1024).toFixed(1) + 'MB');
+}
+
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 

@@ -1,3 +1,1 @@
-data/*.db filter=lfs diff=lfs merge=lfs -text
-data/*.db-shm filter=lfs diff=lfs merge=lfs -text
-data/*.db-wal filter=lfs diff=lfs merge=lfs -text
+# Banco SQLite compactado (geodata.db.gz) - commitado como arquivo normal

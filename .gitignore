@@ -15,8 +15,7 @@ npm-debug.log*
 # Backups de CSV gerados por scripts de correção
 *.backup
 
-# Ignorar dados brutos (CSV, XLSX, etc.) mas não a pasta em si
+# Ignorar dados brutos (CSV, XLSX, etc.) e banco descomprimido
 data/*
-!data/geodata.db
-!data/geodata.db-shm
-!data/geodata.db-wal
+!data/geodata.db.gz
+!data/dicionario_de_dados_agregados_por_setores_censitarios_20260520.xlsx
