@@ -2,30 +2,12 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const zlib = require('zlib');
-
-// Gzip compression middleware
-function compressionMiddleware(req, res, next) {
-    const acceptEncoding = req.headers['accept-encoding'] || '';
-    if (!acceptEncoding.includes('gzip') || req.method === 'HEAD') return next();
-    const send = res.send;
-    const resRef = res;
-    res.send = function (body) {
-        if (typeof body === 'string' || Buffer.isBuffer(body)) {
-            zlib.gzip(body, (err, compressed) => {
-                if (err) return send.call(resRef, body);
-                resRef.setHeader('Content-Encoding', 'gzip');
-                send.call(resRef, compressed);
-            });
-            return;
-        }
-        send.call(resRef, body);
-    };
-    next();
-}
+const helmet = require('helmet');
+const compression = require('compression');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
+const isProduction = process.env.NODE_ENV === 'production';
 
 function loadEnv() {
     const envPath = path.join(__dirname, '.env');
@@ -46,8 +28,13 @@ function loadEnv() {
 loadEnv();
 
 const Database = require('better-sqlite3');
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@geodata.br';
-const ADMIN_SENHA = process.env.ADMIN_SENHA || 'censo2024';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_SENHA = process.env.ADMIN_SENHA;
+
+if (!ADMIN_EMAIL || !ADMIN_SENHA) {
+    console.warn('⚠️ AVISO: ADMIN_EMAIL e ADMIN_SENHA devem ser definidos no .env ou nas variáveis de ambiente!');
+    console.warn('   O servidor vai iniciar, mas NENHUM admin será criado no banco.');
+}
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const TEMPO_EXPIRACAO_MS = 24 * 60 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -102,28 +89,47 @@ function gerarSalt() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Seed admin do .env se nao existir
-const adminExistente = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(ADMIN_EMAIL);
-if (!adminExistente) {
-  const salt = gerarSalt();
-  const hash = hashSenha(ADMIN_SENHA, salt);
-  db.prepare('INSERT INTO usuarios (email, nome, hash, salt, nivel) VALUES (?, ?, ?, ?, ?)').run(ADMIN_EMAIL, 'Administrador', hash, salt, 'admin');
-  console.log('  Admin padrão cadastrado no banco');
+// Seed admin se ADMIN_EMAIL e ADMIN_SENHA estiverem configurados
+if (ADMIN_EMAIL && ADMIN_SENHA) {
+  const adminExistente = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(ADMIN_EMAIL);
+  if (!adminExistente) {
+    const salt = gerarSalt();
+    const hash = hashSenha(ADMIN_SENHA, salt);
+    db.prepare('INSERT INTO usuarios (email, nome, hash, salt, nivel) VALUES (?, ?, ?, ?, ?)').run(ADMIN_EMAIL, 'Administrador', hash, salt, 'admin');
+    console.log('  Admin cadastrado no banco:', ADMIN_EMAIL);
+  }
+} else {
+  console.warn('  Nenhum admin configurado. Crie um usuário via /api/register ou defina ADMIN_EMAIL/ADMIN_SENHA.');
+}
+if (SESSION_SECRET === '4f7a8b2c9d1e3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9') {
+  console.warn(' AVISO: SESSION_SECRET está com o valor padrão do .env. Gere um novo valor para produção.');
 }
 
-app.use(express.json({ limit: '50mb' }));
-app.use(compressionMiddleware);
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false,
+}));
+app.use(compression());
+app.use(express.json({ limit: isProduction ? '10mb' : '50mb' }));
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+if (isProduction && ALLOWED_ORIGINS.length === 0) {
+    console.warn(' AVISO: ALLOWED_ORIGINS não configurado em produção. CORS com credentials será BLOQUEADO.');
+}
 app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        const permitir = ALLOWED_ORIGINS.length === 0 ? !isProduction : ALLOWED_ORIGINS.includes(origin);
+        if (permitir) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        }
     } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Vary', 'Origin');
     if (req.method === 'OPTIONS') return res.status(204).end();
     next();
 });
@@ -138,6 +144,10 @@ app.use((req, res, next) => {
 });
 
 app.all('/favicon.ico', (req, res) => res.status(204).end());
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+});
 
 db.exec(`DELETE FROM sessoes WHERE expira_em < datetime('now')`);
 
@@ -206,11 +216,14 @@ app.post('/api/register', (req, res) => {
             return res.status(400).json({ error: 'Email, nome e senha obrigatórios' });
         }
         const emailLower = email.toLowerCase().trim();
-        if (!emailLower.includes('@') || !emailLower.includes('.')) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
             return res.status(400).json({ error: 'Email inválido' });
         }
-        if (senha.length < 6) {
-            return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+        if (senha.length < 8) {
+            return res.status(400).json({ error: 'Senha deve ter no mínimo 8 caracteres' });
+        }
+        if (!/[A-Z]/.test(senha) || !/[a-z]/.test(senha) || !/\d/.test(senha)) {
+            return res.status(400).json({ error: 'Senha deve conter letras maiúsculas, minúsculas e números' });
         }
         if (nome.trim().length < 2) {
             return res.status(400).json({ error: 'Nome deve ter no mínimo 2 caracteres' });
@@ -713,4 +726,5 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason) => {
     console.error(' Promise rejeitada sem tratamento:', reason);
+    process.exit(1);
 });
