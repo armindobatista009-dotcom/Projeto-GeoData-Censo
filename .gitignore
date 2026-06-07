@@ -1,0 +1,27 @@
+# Dependências
+node_modules/
+
+# Arquivos de ambiente (contém senhas e chaves)
+.env
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backups de CSV gerados por scripts de correção
+*.backup
+
+# Banco de dados SQLite (gerado em runtime)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# XLSX de demografia muito grande (88MB) — o app usa o CSV
+data/Agregados_por_setores_demografia_MANAUS.xlsx
+
+# Ignorar dados brutos (CSV, etc.) para evitar commits grandes
+data/

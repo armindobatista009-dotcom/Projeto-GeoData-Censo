@@ -1,0 +1,1164 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregados por Setores Censitários 2022</title>
+    <link rel="icon" type="image/webp" href="icone.webp">
+    <script src="lib/xlsx.js"></script>
+    <script src="db-config.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef2f7; color: #2c3e50; }
+
+        :root {
+            --ibge-blue: #003f7f;
+            --ibge-blue-2: #004b87;
+            --ibge-blue-3: #0066b3;
+            --ibge-blue-4: #e8f0fa;
+            --ibge-blue-5: #f0f6ff;
+            --header-bg: #005a9e;
+            --ibge-hover: #002d5a;
+            --ibge-green: #236b3c;
+            --ibge-green-hover: #1a522d;
+            --ibge-red: #c0392b;
+            --border-light: #dce3ed;
+            --text-dark: #2c3e50;
+            --text-medium: #556b82;
+            --text-light: #8899aa;
+        }
+
+        #login-screen {
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; background: linear-gradient(135deg, #003366, #001a33);
+        }
+        #login-screen .card {
+            background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+            width: 360px; max-width: 90%; border-top: 4px solid var(--ibge-blue);
+        }
+        #login-screen h1 { font-size: 24px; margin-bottom: 4px; color: var(--ibge-blue); font-weight: 700; }
+        #login-screen h1 img { width: 28px; height: 28px; margin-right: 8px; vertical-align: middle; }
+        #login-screen p { font-size: 14px; color: var(--text-medium); margin-bottom: 24px; }
+        #login-screen label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        #login-screen input {
+            width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-light); border-radius: 6px;
+            font-size: 14px; margin-bottom: 16px; transition: border-color 0.2s;
+        }
+        #login-screen input:focus { outline: none; border-color: var(--ibge-blue-3); box-shadow: 0 0 0 3px rgba(0,102,179,0.12); }
+        #login-screen .btn {
+            width: 100%; padding: 12px; background: var(--ibge-blue); color: #fff; border: none;
+            border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+        }
+        #login-screen .btn:hover { background: var(--ibge-hover); }
+        #login-screen .erro { color: var(--ibge-red); font-size: 13px; margin-top: 8px; display: none; }
+
+        #app-shell { display: none; }
+        header {
+            background: var(--ibge-blue); color: #fff; padding: 14px 28px; display: flex;
+            align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            border-bottom: 3px solid #ffd700;
+        }
+        header h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+        header h1 img { width: 22px; height: 22px; margin-right: 10px; vertical-align: middle; }
+        header .btn-sair {
+            background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+            padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; transition: background 0.2s;
+        }
+        header .btn-sair:hover { background: rgba(255,255,255,0.22); }
+
+        main { padding: 24px 28px; max-width: 1440px; margin: 0 auto; }
+
+        .secao {
+            background: #fff; border-radius: 6px; padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+            margin-bottom: 16px; border: 1px solid var(--border-light);
+        }
+        .secao > .sec-header {
+            background: var(--header-bg); margin: -24px -24px 16px -24px; padding: 12px 24px;
+            border-bottom: 2px solid var(--ibge-blue-4); border-radius: 6px 6px 0 0;
+        }
+        .secao > .sec-header h2 {
+            font-size: 15px; color: #fff; font-weight: 700; letter-spacing: 0; margin: 0;
+        }
+        .secao > .sec-header .flex-row span,
+        .secao > .sec-header .flex-row label { color: #fff; }
+
+        .grid-filtros { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+        .grid-filtros label {
+            display: block; font-size: 11px; font-weight: 600; color: var(--text-medium); margin-bottom: 6px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .grid-filtros select, .grid-filtros input {
+            width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-light); border-radius: 6px;
+            font-size: 14px; background: #fff; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .grid-filtros select:hover { border-color: var(--ibge-blue-3); }
+        .grid-filtros select:focus, .grid-filtros input:focus { outline: none; border-color: var(--ibge-blue-3); box-shadow: 0 0 0 3px rgba(0,102,179,0.12); }
+        .grid-filtros select:disabled { background: #f9f9fb; color: #bbb; cursor: not-allowed; border-color: var(--border-light); }
+
+        .vars-selecionadas {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 32px;
+        }
+        .var-tag {
+            background: var(--ibge-blue-4); color: var(--ibge-blue); padding: 4px 10px; border-radius: 4px;
+            font-size: 12px; display: flex; align-items: center; gap: 4px; border-left: 3px solid var(--ibge-blue-3);
+        }
+        .var-tag .remover {
+            cursor: pointer; font-weight: bold; font-size: 14px; color: var(--text-light); margin-left: 2px;
+        }
+        .var-tag .remover:hover { color: var(--ibge-red); }
+
+        .tabela-wrapper { background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03); overflow: auto; border: 1px solid var(--border-light); }
+
+        .tabela-wrapper table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        .tabela-wrapper thead { position: sticky; top: 0; z-index: 1; }
+        .tabela-wrapper th {
+            background: #f2f6fc; text-align: left; padding: 11px 14px; font-size: 12px;
+            color: var(--text-dark); font-weight: 600; border-bottom: 2px solid var(--ibge-blue-4);
+            white-space: normal; word-wrap: break-word;
+            vertical-align: bottom; line-height: 1.4;
+        }
+        .tabela-wrapper th.num { text-align: right; }
+        .tabela-wrapper td {
+            padding: 9px 14px; border-bottom: 1px solid var(--border-light);
+            white-space: normal; word-wrap: break-word;
+            vertical-align: top; line-height: 1.4;
+        }
+        .tabela-wrapper tbody tr:nth-child(even) { background: #f8faff; }
+        .tabela-wrapper tbody tr:hover td { background: var(--ibge-blue-4); }
+        .tabela-wrapper .num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Segoe UI', Consolas, monospace; }
+
+        .loading { text-align: center; padding: 40px; color: var(--text-light); font-size: 14px; }
+        .vazia { text-align: center; padding: 60px 20px; color: var(--text-light); }
+        .vazia .icone { font-size: 52px; margin-bottom: 12px; display: block; }
+
+        .vars-grid { max-height: 300px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; padding: 6px; }
+        .vars-grid label { display: flex; align-items: center; gap: 6px; padding: 4px 6px; font-size: 13px; cursor: pointer; border-radius: 3px; }
+        .vars-grid label:hover { background: var(--ibge-blue-5); }
+        .vars-grid input[type=checkbox] { accent-color: var(--ibge-blue-3); }
+
+        .btn-peq {
+            padding: 7px 16px; font-size: 13px; border: 1.5px solid var(--border-light); border-radius: 4px;
+            background: #fff; cursor: pointer; color: var(--text-medium); transition: all 0.15s; font-weight: 500;
+        }
+        .btn-peq:hover { background: var(--ibge-blue-5); border-color: var(--ibge-blue-3); color: var(--ibge-blue); }
+        .btn-peq.primario { background: var(--ibge-blue); color: #fff; border-color: var(--ibge-blue); }
+        .btn-peq.primario:hover { background: var(--ibge-hover); border-color: var(--ibge-hover); color: #fff; }
+
+        .flex-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .flex-row > div { display: flex; flex-direction: column; }
+        .flex-row label { display: block; font-size: 11px; font-weight: 600; color: var(--text-medium); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .flex-row select, .flex-row input {
+            width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-light); border-radius: 6px;
+            font-size: 14px; background: #fff; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .flex-row select:hover, .flex-row input:hover { border-color: var(--ibge-blue-3); }
+        .flex-row select:focus, .flex-row input:focus { outline: none; border-color: var(--ibge-blue-3); box-shadow: 0 0 0 3px rgba(0,102,179,0.12); }
+        .paginacao { display: flex; align-items: center; justify-content: center; padding: 12px; gap: 4px; border-top: 1px solid var(--border-light); }
+        .paginacao button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-export { background: var(--ibge-green); color: #fff; border-color: var(--ibge-green); }
+        .btn-export:hover { background: var(--ibge-green-hover); border-color: var(--ibge-green-hover); color: #fff; }
+
+        .multi-select-setor { position: relative; }
+        .multi-select-setor .ms-input {
+            width: 100%; padding: 10px 12px; border: 1.5px solid var(--border-light); border-radius: 6px;
+            font-size: 14px; background: #fff; cursor: text; transition: border-color 0.15s, box-shadow 0.15s;
+            min-height: 42px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+        }
+        .multi-select-setor .ms-input:focus-within { outline: none; border-color: var(--ibge-blue-3); box-shadow: 0 0 0 3px rgba(0,102,179,0.12); }
+        .multi-select-setor .ms-input input.ms-search {
+            border: none; outline: none; font-size: 14px; flex: 1; min-width: 80px; padding: 2px 0; background: transparent;
+        }
+        .multi-select-setor .ms-tag {
+            background: var(--ibge-blue-4); color: var(--ibge-blue); padding: 2px 8px; border-radius: 4px;
+            font-size: 12px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; border-left: 2px solid var(--ibge-blue-3);
+        }
+        .multi-select-setor .ms-tag .ms-remover { cursor: pointer; font-weight: bold; font-size: 14px; color: var(--text-light); margin-left: 2px; }
+        .multi-select-setor .ms-tag .ms-remover:hover { color: var(--ibge-red); }
+        .multi-select-setor .ms-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+            background: #fff; border: 1.5px solid var(--border-light); border-radius: 6px; margin-top: 4px;
+            max-height: 260px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .multi-select-setor .ms-dropdown.aberto { display: block; }
+        .multi-select-setor .ms-dropdown label {
+            display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+            font-weight: normal; text-transform: none; letter-spacing: 0; margin: 0;
+        }
+        .multi-select-setor .ms-dropdown label:hover { background: var(--ibge-blue-5); }
+        .multi-select-setor .ms-dropdown label input { accent-color: var(--ibge-blue-3); width: auto; }
+        .multi-select-setor .ms-vazia { padding: 12px; text-align: center; color: var(--text-light); font-size: 13px; }
+        .multi-select-setor .ms-info { font-size: 11px; color: var(--text-light); padding: 4px 0 0; }
+
+        .badge-presidio {
+            display: inline-block; background: #e8d4f0; color: #6a1b9a; font-size: 11px;
+            font-weight: 700; padding: 1px 8px; border-radius: 3px; margin-left: 4px;
+            border: 1px solid #ce93d8; vertical-align: middle;
+        }
+
+        .info-panels { margin: 16px 0 0; display: flex; flex-direction: column; gap: 10px; }
+        .info-panel {
+            display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px;
+            border-radius: 6px; font-size: 13px; line-height: 1.5;
+            border-left: 4px solid;
+        }
+        .info-panel-presidio { background: #f3e5f5; border-color: #8e24aa; }
+        .info-icon { font-size: 20px; line-height: 1.4; flex-shrink: 0; }
+        .info-panel-content { flex: 1; }
+        .info-panel-content strong { display: block; margin-bottom: 2px; font-size: 13px; }
+        .info-panel-content p { margin: 4px 0 0; color: var(--text-medium); font-size: 12.5px; }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <div class="card">
+                <div id="form-login">
+                    <h1><img src="/icone.webp" alt="Logo"> Agregados por Setores Censitários 2022</h1>
+                    <p>Faça login para acessar os dados do Censo 2022 IBGE</p>
+                <label for="email">E-mail</label>
+                <input type="email" id="email" placeholder="seu@email.com" autocomplete="email">
+                <label for="password">Senha</label>
+                <input type="password" id="password" placeholder="Sua senha" autocomplete="current-password">
+                <button class="btn" onclick="app.login()">Entrar</button>
+                <p style="text-align:center;margin-top:12px;font-size:13px;color:#888">
+                    Não tem conta? <a href="#" onclick="app.mostrarCadastro()" style="color:#1a73e8;text-decoration:none;font-weight:600">Cadastre-se</a>
+                </p>
+                <p class="erro" id="erro-login">Credenciais inválidas</p>
+            </div>
+            <div id="form-cadastro" style="display:none">
+                <h1><img src="/icone.webp" alt="Logo"> Agregados por Setores Censitários 2022</h1>
+                <p>Crie sua conta para acessar os dados do Censo 2022 IBGE</p>
+                <label for="reg-nome">Nome</label>
+                <input type="text" id="reg-nome" placeholder="Seu nome">
+                <label for="reg-email">E-mail</label>
+                <input type="email" id="reg-email" placeholder="seu@email.com" autocomplete="email">
+                <label for="reg-senha">Senha</label>
+                <input type="password" id="reg-senha" placeholder="Mínimo 6 caracteres">
+                <button class="btn" onclick="app.cadastrar()">Cadastrar</button>
+                <p style="text-align:center;margin-top:12px;font-size:13px;color:#888">
+                    Já tem conta? <a href="#" onclick="app.mostrarLogin()" style="color:#1a73e8;text-decoration:none;font-weight:600">Fazer login</a>
+                </p>
+                <p class="erro" id="erro-cadastro">Erro ao cadastrar</p>
+                <p class="sucesso" id="sucesso-cadastro" style="color:#2e7d32;font-size:13px;margin-top:8px;display:none">Conta criada com sucesso! Faça login.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-shell">
+        <header>
+            <h1><img src="/icone.webp" alt="Logo"> Agregados por Setores Censitários 2022</h1>
+            <p style="margin:0;font-size:0.85rem;color:#fff;grid-column:1/-1;text-align:center">Para maiores informações acesse: <a href="https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-censo-demografico-2022.html?edicao=41852&t=sobre" target="_blank" style="color:#fff;text-decoration:underline">https://www.ibge.gov.br/estatisticas/sociais/populacao/22827-censo-demografico-2022.html?edicao=41852&t=sobre</a></p>
+            <button class="btn-sair" onclick="app.logout()">Sair</button>
+        </header>
+        <main>
+            <div id="variaveis-section" class="secao">
+                <div class="sec-header"><h2>📋 Catálogo de Variáveis</h2></div>
+                <div class="flex-row" style="margin-bottom:10px">
+                    <div style="flex:1"><label>Tema</label><select id="sel-tema" onchange="app.mudarTema()"><option value="">Selecione um tema</option></select></div>
+                    <div style="flex:1"><label>Subtema</label><select id="sel-subtema" onchange="app.mudarSubtema()" disabled><option value="">Selecione um subtema</option></select></div>
+                    <div style="flex:1"><label>Buscar variável</label><input type="text" id="busca-var" placeholder="Digite código ou descrição..." oninput="app.filtrarVariaveis()"></div>
+                </div>
+                <div id="vars-container" style="margin-bottom:8px">
+                    <div class="vazia" style="padding:20px"><span class="icone" style="font-size:32px">📂</span> Selecione um tema e subtema para ver as variáveis disponíveis.</div>
+                </div>
+                <div class="flex-row" style="justify-content:space-between">
+                    <div><button class="btn-peq" onclick="app.selecionarTodasVars(true)">☑ Selecionar todas</button> <button class="btn-peq" onclick="app.selecionarTodasVars(false)">☐ Limpar</button></div>
+                    <div>
+                        <button class="btn-peq primario" onclick="app.adicionarVarsConsulta()">➕ Adicionar à consulta</button>
+                        <button class="btn-peq" onclick="app.limparConsulta()" style="color:var(--ibge-red);border-color:var(--ibge-red)">🗑 Limpar consulta</button>
+                    </div>
+                </div>
+                <div class="vars-selecionadas" id="vars-consulta"></div>
+            </div>
+
+            <div class="secao">
+                <div class="sec-header"><h2>🌐 Filtros Geográficos</h2></div>
+                <div class="grid-filtros" id="filtros-container"></div>
+                <div style="margin-top:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+                    <span style="font-size:13px;font-weight:700;color:var(--ibge-blue)">📌 Agrupar por:</span>
+                    <label style="font-size:13px;cursor:pointer"><input type="radio" name="agregacao" value="municipio" checked onchange="app.mudarAgregacao('municipio')"> 🏛 Total por Município</label>
+                    <label style="font-size:13px;cursor:pointer"><input type="radio" name="agregacao" value="bairro" onchange="app.mudarAgregacao('bairro')"> 🏘 Total por Bairro</label>
+                </div>
+                <div class="flex-row" style="margin-top:12px;justify-content:flex-end">
+                    <button class="btn-peq primario" id="btn-pesquisar" onclick="app.pesquisar()" style="display:none">🔍 Pesquisar</button>
+                </div>
+            </div>
+
+            <div class="secao" style="padding:0;overflow:hidden">
+                <div class="sec-header" style="margin:0;display:flex;align-items:center;justify-content:space-between">
+                    <h2>📊 Resultados</h2>
+                    <div class="flex-row" style="margin:0">
+                        <span id="contagem-registros">0 registros</span>
+                        <button class="btn-peq btn-export" onclick="app.exportarCSV()" id="btn-export" style="display:none">📥 Exportar CSV</button>
+                    </div>
+                </div>
+                <div class="tabela-wrapper" style="border:none;border-radius:0;box-shadow:none">
+                    <div id="tabela-container"><div class="loading">📊 Carregando dados do Censo 2022...</div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        
+
+        // Mapa: variável de taxa/média -> variável de peso (para média ponderada)
+        // Só se aplica a variáveis do subtema Básico (V00005 e V00006 são taxas apenas lá)
+        const WEIGHT_MAP = { V00005: 'V00007', V00006: 'V00007' };
+        const BASICO_ARQUIVOS = new Set(['Agregados_por_municipios_basico_BR.csv', 'Agregados_por_bairros_basico_BR.csv', 'Agregados_por_distritos_basico_BR.csv']);
+
+        function isPresidio(r) { return false; }
+
+        function isSetorSemBairro(r) { return false; }
+
+        function temVarBasico() {
+            return app.state.varsConsulta.some(v => BASICO_ARQUIVOS.has(v.arquivo));
+        }
+
+        function isPesoAtivo(codigo) {
+            return app.state.varsConsulta.some(v => v.codigo === codigo && BASICO_ARQUIVOS.has(v.arquivo));
+        }
+
+        const app = {
+            state: { user: null, token: null, dados: [], dadosFiltrados: [], varsConsulta: [], agregacao: 'municipio', pesquisaRealizada: false, carregando: false, municipioSelecionado: '', regiaoSelecionada: '', regioes: [], estados: [], municipios: [] },
+            paginaAtual: 1,
+            linhasPorPagina: 100,
+
+            authFetch: async function(url, options) {
+                const res = await fetch(url, options);
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        this.logout();
+                        throw new Error('Sessão expirada');
+                    }
+                    let msg = 'Erro HTTP ' + res.status;
+                    try { const d = await res.json(); if (d.error) msg = d.error; } catch {}
+                    throw new Error(msg);
+                }
+                return res;
+            },
+
+            init: function() {
+                this.checkHash();
+                window.addEventListener('hashchange', () => this.checkHash());
+                document.getElementById('password').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') this.login();
+                });
+                document.getElementById('reg-senha').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') this.cadastrar();
+                });
+            },
+
+            mostrarCadastro: function() {
+                document.getElementById('form-login').style.display = 'none';
+                document.getElementById('form-cadastro').style.display = 'block';
+                document.getElementById('erro-cadastro').style.display = 'none';
+                document.getElementById('sucesso-cadastro').style.display = 'none';
+            },
+
+            mostrarLogin: function() {
+                document.getElementById('form-login').style.display = 'block';
+                document.getElementById('form-cadastro').style.display = 'none';
+                document.getElementById('erro-login').style.display = 'none';
+            },
+
+            cadastrar: async function() {
+                const nome = document.getElementById('reg-nome').value.trim();
+                const email = document.getElementById('reg-email').value.trim().toLowerCase();
+                const senha = document.getElementById('reg-senha').value;
+                const erroEl = document.getElementById('erro-cadastro');
+                const sucessoEl = document.getElementById('sucesso-cadastro');
+                erroEl.style.display = 'none';
+                sucessoEl.style.display = 'none';
+                if (!nome || !email || !senha) {
+                    erroEl.textContent = 'Preencha todos os campos';
+                    erroEl.style.display = 'block';
+                    return;
+                }
+                if (!email.includes('@') || !email.includes('.')) {
+                    erroEl.textContent = 'Email inválido';
+                    erroEl.style.display = 'block';
+                    return;
+                }
+                if (senha.length < 6) {
+                    erroEl.textContent = 'Senha deve ter no mínimo 6 caracteres';
+                    erroEl.style.display = 'block';
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, senha, nome })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                        erroEl.textContent = data.error || 'Erro ' + res.status;
+                        erroEl.style.display = 'block';
+                        return;
+                    }
+                    sucessoEl.style.display = 'block';
+                    document.getElementById('reg-nome').value = '';
+                    document.getElementById('reg-email').value = '';
+                    document.getElementById('reg-senha').value = '';
+                } catch (err) {
+                    erroEl.textContent = 'Erro de conexão';
+                    erroEl.style.display = 'block';
+                }
+            },
+
+            login: async function() {
+                const emailEl = document.getElementById('email');
+                const senhaEl = document.getElementById('password');
+                const email = emailEl ? emailEl.value.trim().toLowerCase() : '';
+                const senha = senhaEl ? senhaEl.value.trim() : '';
+                const erroEl = document.getElementById('erro-login');
+                if (!email || !senha) {
+                    erroEl.textContent = 'Preencha email e senha';
+                    erroEl.style.display = 'block';
+                    return;
+                }
+                if (!email.includes('@') || !email.includes('.')) {
+                    erroEl.textContent = 'Email inválido';
+                    erroEl.style.display = 'block';
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, senha })
+                    });
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        erroEl.textContent = errData.error || 'Erro ' + res.status;
+                        erroEl.style.display = 'block';
+                        console.error('Login erro:', res.status, errData);
+                        return;
+                    }
+                    const data = await res.json();
+                    this.state.user = email;
+                    this.state.token = data.token;
+                    erroEl.style.display = 'none';
+                    document.getElementById('password').value = '';
+                    location.hash = '#dashboard';
+                } catch (err) {
+                    erroEl.style.display = 'block';
+                }
+            },
+
+            checkHash: async function() {
+                const hash = location.hash || '#login';
+                const loginScreen = document.getElementById('login-screen');
+                const appShell = document.getElementById('app-shell');
+                if (hash === '#dashboard' && this.state.user) {
+                    loginScreen.style.display = 'none';
+                    appShell.style.display = 'block';
+                    this.montarCatalogo();
+                    this.construirGridFiltros();
+                    await this.carregarRegioes();
+                } else {
+                    loginScreen.style.display = 'flex';
+                    appShell.style.display = 'none';
+                }
+            },
+
+            montarCatalogo: function() {
+                const sel = document.getElementById('sel-tema');
+                sel.innerHTML = '<option value="">Selecione um tema</option>';
+                CATALOGO.forEach((t, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = t.tema;
+                    sel.appendChild(opt);
+                });
+            },
+
+            mudarTema: function() {
+                const idx = document.getElementById('sel-tema').value;
+                const selSub = document.getElementById('sel-subtema');
+                selSub.innerHTML = '<option value="">Selecione um subtema</option>';
+                selSub.disabled = true;
+                document.getElementById('vars-container').innerHTML = '<div class="vazia" style="padding:20px"><span class="icone" style="font-size:32px">📂</span> Selecione um subtema para ver as variáveis.</div>';
+                if (!idx) return;
+                const tema = CATALOGO[parseInt(idx)];
+                tema.subtemas.forEach((st, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = st.nome;
+                    selSub.appendChild(opt);
+                });
+                selSub.disabled = false;
+            },
+
+            mudarSubtema: function() {
+                const tIdx = document.getElementById('sel-tema').value;
+                const stIdx = document.getElementById('sel-subtema').value;
+                if (!tIdx || !stIdx) return;
+                const subtema = CATALOGO[parseInt(tIdx)].subtemas[parseInt(stIdx)];
+                this.exibirVariaveis(subtema);
+            },
+
+            descricoesCache: {},
+
+            aplicarDescricoesGrid: function(descs) {
+                const grid = document.getElementById('vars-grid');
+                if (!grid) return;
+                grid.querySelectorAll('label').forEach(lb => {
+                    const cb = lb.querySelector('.var-cb');
+                    if (!cb) return;
+                    const v = cb.value;
+                    const desc = descs[v];
+                    if (desc) {
+                        lb.textContent = '';
+                        lb.appendChild(cb);
+                        lb.append(' ' + v + ' - ' + desc);
+                    }
+                });
+                this.filtrarVariaveis();
+            },
+
+            carregarDescricoes: async function(nomeArquivo) {
+                const arquivoDict = nomeArquivo.replace(/\.csv$/i, '.xlsx');
+                const token = this.state.token;
+                if (!token) return;
+                if (this.descricoesCache[arquivoDict]) {
+                    this.aplicarDescricoesGrid(this.descricoesCache[arquivoDict]);
+                    return;
+                }
+                try {
+                    const url = '/api/descricoes/' + encodeURIComponent(arquivoDict);
+                    const res = await this.authFetch(url, { headers: { 'Authorization': token } });
+                    const descs = await res.json();
+                    this.descricoesCache[arquivoDict] = descs;
+                    this.aplicarDescricoesGrid(descs);
+                } catch (err) {
+                    if (!err.message.includes('Sessão expirada')) {
+                        console.warn('Descrições não disponíveis:', err.message);
+                    }
+                }
+            },
+
+            exibirVariaveis: function(subtema) {
+                const container = document.getElementById('vars-container');
+                const vars = subtema.vars;
+                if (vars.length === 0) {
+                    container.innerHTML = '<div class="vazia" style="padding:20px"><span class="icone" style="font-size:32px">⚠️</span> Este subtema não possui variáveis disponíveis.</div>';
+                    return;
+                }
+                let html = '<div class="vars-grid" id="vars-grid">';
+                vars.forEach(v => {
+                    html += '<label><input type="checkbox" class="var-cb" value="' + v + '"> ' + v + '</label>';
+                });
+                html += '</div>';
+                container.innerHTML = html;
+                // Load descriptions async
+                if (subtema.arquivo) {
+                    this.carregarDescricoes(subtema.arquivo);
+                }
+            },
+
+            filtrarVariaveis: function() {
+                const busca = document.getElementById('busca-var').value.toLowerCase();
+                const cbs = document.querySelectorAll('#vars-grid label');
+                cbs.forEach(lb => {
+                    const txt = lb.textContent.toLowerCase();
+                    lb.style.display = (!busca || txt.includes(busca)) ? 'flex' : 'none';
+                });
+            },
+
+            selecionarTodasVars: function(marcar) {
+                document.querySelectorAll('.var-cb').forEach(cb => cb.checked = marcar);
+            },
+
+            adicionarVarsConsulta: function() {
+                const selecionadas = [];
+                document.querySelectorAll('.var-cb:checked').forEach(cb => selecionadas.push(cb.value));
+                if (selecionadas.length === 0) return;
+
+                const tIdx = document.getElementById('sel-tema').value;
+                const stIdx = document.getElementById('sel-subtema').value;
+                if (!tIdx || !stIdx) return;
+                const tema = CATALOGO[parseInt(tIdx)].tema;
+                const subtema = CATALOGO[parseInt(tIdx)].subtemas[parseInt(stIdx)];
+                if (!subtema || !subtema.arquivo) {
+                    console.warn('Subtema sem arquivo associado');
+                    return;
+                }
+                const arquivoDict = subtema.arquivo.replace(/\.csv$/i, '.xlsx');
+                const descs = this.descricoesCache[arquivoDict] || subtema.descricoes || {};
+
+                const jaExiste = new Set(this.state.varsConsulta.map(v => v.codigo));
+                const novas = selecionadas.filter(v => !jaExiste.has(v));
+                if (novas.length === 0) return;
+
+                novas.forEach(v => {
+                    this.state.varsConsulta.push({
+                        codigo: v,
+                        descricao: descs[v] || v,
+                        tema: tema,
+                        subtema: subtema.nome,
+                        arquivo: subtema.arquivo
+                    });
+                });
+                this.renderizarVarsConsulta();
+                this.state.pesquisaRealizada = false;
+                document.getElementById('btn-pesquisar').style.display = 'inline-block';
+                const container = document.getElementById('tabela-container');
+                container.innerHTML = '<div class="vazia">🔍 Selecione os filtros geográficos e clique em <strong>Pesquisar</strong> para ver os resultados.</div>';
+                document.getElementById('contagem-registros').textContent = '0 registros';
+                document.getElementById('btn-export').style.display = 'none';
+            },
+
+            renderizarVarsConsulta: function() {
+                const container = document.getElementById('vars-consulta');
+                if (this.state.varsConsulta.length === 0) {
+                    container.innerHTML = '<span style="color:var(--text-light);font-size:13px">📋 Nenhuma variável selecionada. Escolha um tema, subtema e marque as variáveis acima.</span>';
+                    return;
+                }
+                container.innerHTML = this.state.varsConsulta.map((v, i) =>
+                    '<span class="var-tag">' + v.codigo + ' ' + (v.descricao !== v.codigo ? ' - ' + v.descricao : '') +
+                    ' <span class="remover" onclick="app.removerVarConsulta(' + i + ')">×</span></span>'
+                ).join('');
+            },
+
+            limparConsulta: function() {
+                this.state.varsConsulta = [];
+                this.state.pesquisaRealizada = false;
+                this.renderizarVarsConsulta();
+                document.getElementById('btn-pesquisar').style.display = 'none';
+                const container = document.getElementById('tabela-container');
+                container.innerHTML = '<div class="vazia" style="padding:20px"><span class="icone" style="font-size:32px">📂</span> Selecione um tema e subtema para ver as variáveis disponíveis.</div>';
+                document.getElementById('contagem-registros').textContent = '0 registros';
+                document.getElementById('btn-export').style.display = 'none';
+            },
+
+            removerVarConsulta: function(idx) {
+                this.state.varsConsulta.splice(idx, 1);
+                this.renderizarVarsConsulta();
+                if (this.state.varsConsulta.length === 0) {
+                    this.limparConsulta();
+                    return;
+                }
+                if (this.state.pesquisaRealizada) {
+                    this.atualizarTabela(this.state.dadosFiltrados);
+                }
+            },
+
+            // --- Geographic filters ---
+            GEO_CAMPOS: [
+                { key: 'NM_REGIAO', label: 'Região' },
+                { key: 'NM_UF', label: 'Estado' },
+                { key: 'NM_MUN', label: 'Município' },
+                { key: 'NM_DIST', label: 'Distrito' },
+                { key: 'NM_SUBDIST', label: 'Subdistrito' },
+                { key: 'NM_BAIRRO', label: 'Bairro' },
+                { key: 'NM_FCU', label: 'Comunidade' },
+                { key: 'NM_NU', label: 'Núcleo Urbano' },
+                { key: 'NM_AGLOM', label: 'Aglomerado' },
+                { key: 'SITUACAO', label: 'Situação' }
+            ],
+
+            limparSetor: function(val) {
+                if (val === null || val === undefined || val === '') return '';
+                const str = String(val);
+                const digitos = str.replace(/\D/g, '');
+                return digitos || str;
+            },
+
+            // --- API-based cascade helpers ---
+            preencherSelect: function(key, valores) {
+                const select = document.getElementById('filtro-' + key);
+                if (!select) return;
+                select.innerHTML = '<option value="">Todos</option>';
+                valores.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v; opt.textContent = v;
+                    select.appendChild(opt);
+                });
+                select.disabled = valores.length === 0;
+            },
+
+            desabilitarSelect: function(key) {
+                const select = document.getElementById('filtro-' + key);
+                if (!select) return;
+                select.innerHTML = '<option value="">Todos</option>';
+                select.disabled = true;
+            },
+
+            limparFiltrosAbaixo: function(key) {
+                const idx = this.GEO_CAMPOS.findIndex(c => c.key === key);
+                if (idx === -1) return;
+                for (let i = idx + 1; i < this.GEO_CAMPOS.length; i++) {
+                    this.desabilitarSelect(this.GEO_CAMPOS[i].key);
+                }
+            },
+
+            construirGridFiltros: function() {
+                const container = document.getElementById('filtros-container');
+                container.innerHTML = '';
+                this.GEO_CAMPOS.forEach(campo => {
+                    const div = document.createElement('div');
+                    div.innerHTML = '<label>' + campo.label + '</label><select id="filtro-' + campo.key + '" data-key="' + campo.key + '" disabled><option value="">Todos</option></select>';
+                    const select = div.querySelector('select');
+                    if (campo.key === 'NM_REGIAO') {
+                        select.addEventListener('change', () => this.selecionarRegiao());
+                    } else if (campo.key === 'NM_UF') {
+                        select.addEventListener('change', () => this.selecionarEstado());
+                    } else if (campo.key === 'NM_MUN') {
+                        select.addEventListener('change', () => this.selecionarMunicipio());
+                    } else {
+                        select.addEventListener('change', () => this.atualizarCascata(campo.key));
+                    }
+                    container.appendChild(div);
+                });
+            },
+
+            carregarRegioes: async function() {
+                try {
+                    const res = await this.authFetch('/api/geografia/regioes', {
+                        headers: { 'Authorization': this.state.token }
+                    });
+                    const regioes = await res.json();
+                    this.state.regioes = regioes;
+                    this.preencherSelect('NM_REGIAO', regioes);
+                    if (!this.state.estados.length) await this.carregarEstados();
+                } catch (err) {
+                    console.error('Erro ao carregar regiões:', err);
+                }
+            },
+
+            carregarEstados: async function(regiao) {
+                try {
+                    const url = regiao
+                        ? '/api/geografia/estados?regiao=' + encodeURIComponent(regiao)
+                        : '/api/geografia/estados';
+                    const res = await this.authFetch(url, {
+                        headers: { 'Authorization': this.state.token }
+                    });
+                    const estados = await res.json();
+                    const nomes = estados.map(e => e.nm_uf);
+                    this.state.estados = nomes;
+                    this.preencherSelect('NM_UF', nomes);
+                } catch (err) {
+                    console.error('Erro ao carregar estados:', err);
+                }
+            },
+
+            carregarMunicipios: async function(uf) {
+                try {
+                    const url = uf
+                        ? '/api/geografia/municipios?uf=' + encodeURIComponent(uf)
+                        : '/api/geografia/municipios';
+                    const res = await this.authFetch(url, {
+                        headers: { 'Authorization': this.state.token }
+                    });
+                    const municipios = await res.json();
+                    const nomes = municipios.map(m => m.nm_mun);
+                    this.state.municipios = nomes;
+                    this.preencherSelect('NM_MUN', nomes);
+                } catch (err) {
+                    console.error('Erro ao carregar municípios:', err);
+                }
+            },
+
+            _detalhesCache: null,
+
+            carregarDetalhesGeo: async function(municipio) {
+                if (!municipio) { this._detalhesCache = null; return; }
+                try {
+                    const res = await this.authFetch('/api/geografia/detalhes?municipio=' + encodeURIComponent(municipio), {
+                        headers: { 'Authorization': this.state.token }
+                    });
+                    const detalhes = await res.json();
+                    this._detalhesCache = detalhes;
+                    this.montarFiltrosDetalhes(detalhes);
+                } catch (err) {
+                    console.error('Erro ao carregar detalhes geográficos:', err);
+                }
+            },
+
+            montarFiltrosDetalhes: function(detalhes) {
+                const mapa = {
+                    NM_DIST: (detalhes.distritos || []).map(d => d.nm_dist).filter(Boolean),
+                    NM_SUBDIST: (detalhes.subdistritos || []).map(d => d.nm_subdist).filter(Boolean),
+                    NM_BAIRRO: (detalhes.bairros || []).map(b => b.nm_bairro).filter(Boolean),
+                    NM_FCU: (detalhes.comunidades || []).filter(Boolean),
+                    NM_NU: (detalhes.nucleosUrbanos || []).map(n => n.nm_nu).filter(Boolean),
+                    NM_AGLOM: (detalhes.aglomerados || []).filter(Boolean),
+                    SITUACAO: (detalhes.situacoes || []).filter(Boolean)
+                };
+                for (const [key, valores] of Object.entries(mapa)) {
+                    this.preencherSelect(key, valores);
+                }
+            },
+
+            atualizarCascata: function(chaveAlterada) {
+                if (!this._detalhesCache) return;
+                const idx = this.GEO_CAMPOS.findIndex(c => c.key === chaveAlterada);
+                if (idx === -1) return;
+                const detalhes = this._detalhesCache;
+                const filtros = {};
+                for (let i = 0; i <= idx; i++) {
+                    const campo = this.GEO_CAMPOS[i];
+                    const select = document.getElementById('filtro-' + campo.key);
+                    if (select) filtros[campo.key] = select.value;
+                }
+                for (let i = idx + 1; i < this.GEO_CAMPOS.length; i++) {
+                    const campo = this.GEO_CAMPOS[i];
+                    let valores = [];
+                    if (campo.key === 'NM_DIST') {
+                        valores = (detalhes.distritos || []).map(d => d.nm_dist).filter(Boolean);
+                    } else if (campo.key === 'NM_SUBDIST') {
+                        valores = (detalhes.subdistritos || []).map(d => d.nm_subdist).filter(Boolean);
+                        const distFiltro = filtros['NM_DIST'];
+                        if (distFiltro) {
+                            valores = (detalhes.subdistritos || [])
+                                .filter(d => d.nm_dist === distFiltro)
+                                .map(d => d.nm_subdist).filter(Boolean);
+                        }
+                    } else if (campo.key === 'NM_BAIRRO') {
+                        valores = (detalhes.bairros || []).map(b => b.nm_bairro).filter(Boolean);
+                    } else if (campo.key === 'NM_FCU') {
+                        valores = (detalhes.comunidades || []).filter(Boolean);
+                    } else if (campo.key === 'NM_NU') {
+                        valores = (detalhes.nucleosUrbanos || []).map(n => n.nm_nu).filter(Boolean);
+                    } else if (campo.key === 'NM_AGLOM') {
+                        valores = (detalhes.aglomerados || []).filter(Boolean);
+                    } else if (campo.key === 'SITUACAO') {
+                        valores = (detalhes.situacoes || []).filter(Boolean);
+                    }
+                    this.preencherSelect(campo.key, valores);
+                }
+            },
+
+            selecionarRegiao: async function() {
+                const sel = document.getElementById('filtro-NM_REGIAO');
+                this.state.regiaoSelecionada = sel.value;
+                this.state.municipioSelecionado = '';
+                this._detalhesCache = null;
+
+                this.limparFiltrosAbaixo('NM_REGIAO');
+                if (this.state.regiaoSelecionada) {
+                    await this.carregarEstados(this.state.regiaoSelecionada);
+                } else {
+                    await this.carregarEstados();
+                }
+                if (this.state.pesquisaRealizada) {
+                    this.paginaAtual = 1;
+                    this.pesquisar();
+                }
+            },
+
+            selecionarEstado: async function() {
+                const sel = document.getElementById('filtro-NM_UF');
+                const uf = sel.value;
+                this.state.municipioSelecionado = '';
+                this._detalhesCache = null;
+
+                this.limparFiltrosAbaixo('NM_UF');
+                if (uf) {
+                    await this.carregarMunicipios(uf);
+                } else {
+                    this.desabilitarSelect('NM_MUN');
+                    this.limparFiltrosAbaixo('NM_MUN');
+                }
+                if (this.state.pesquisaRealizada) {
+                    this.paginaAtual = 1;
+                    this.pesquisar();
+                }
+            },
+
+            selecionarMunicipio: async function() {
+                const sel = document.getElementById('filtro-NM_MUN');
+                this.state.municipioSelecionado = sel.value;
+
+                this.limparFiltrosAbaixo('NM_MUN');
+                if (this.state.municipioSelecionado) {
+                    await this.carregarDetalhesGeo(this.state.municipioSelecionado);
+                }
+                if (this.state.varsConsulta.length > 0) {
+                    document.getElementById('btn-pesquisar').style.display = 'inline-block';
+                }
+                if (this.state.pesquisaRealizada) {
+                    this.paginaAtual = 1;
+                    this.pesquisar();
+                }
+            },
+
+            aplicarFiltros: function() {
+                let dados = this.state.dados || [];
+                this.state.dadosFiltrados = dados;
+                this.paginaAtual = 1;
+                this.atualizarTabela(dados);
+            },
+
+            mudarAgregacao: function(modo) {
+                this.state.agregacao = modo;
+                if (this.state.carregando || this.state.dados.length === 0) return;
+                this.atualizarTabela(this.state.dadosFiltrados);
+            },
+
+            agregarPorMunicipio: function(dados) {
+                return dados || [];
+            },
+
+            pesquisar: async function() {
+                if (this.state.varsConsulta.length === 0) return;
+                const container = document.getElementById('tabela-container');
+                container.innerHTML = '<div class="loading">⏳ Carregando dados do Censo 2022...</div>';
+                this.state.carregando = true;
+                document.querySelectorAll('input[name="agregacao"]').forEach(el => el.disabled = true);
+
+                try {
+                    const lerFiltro = (key) => {
+                        const el = document.getElementById('filtro-' + key);
+                        return el ? el.value : '';
+                    };
+
+                    const uf = lerFiltro('NM_UF');
+                    const municipio = lerFiltro('NM_MUN');
+                    if (!municipio && !uf) {
+                        container.innerHTML = '<div class="vazia">⚠️ Selecione um estado ou município para realizar a pesquisa.</div>';
+                        return;
+                    }
+
+                    const todasVars = new Set();
+                    const varFileMap = {};
+                    const isBairro = this.state.agregacao === 'bairro';
+                    const bairroArquivo = 'Agregados_por_bairros_basico_BR.csv';
+                    this.state.varsConsulta.forEach(v => {
+                        todasVars.add(v.codigo);
+                        if (isBairro && BASICO_ARQUIVOS.has(v.arquivo)) {
+                            varFileMap[v.codigo] = bairroArquivo;
+                        } else {
+                            varFileMap[v.codigo] = v.arquivo;
+                        }
+                        if (BASICO_ARQUIVOS.has(v.arquivo)) {
+                            const peso = WEIGHT_MAP[v.codigo];
+                            if (peso) {
+                                todasVars.add(peso);
+                                if (isBairro) varFileMap[peso] = bairroArquivo;
+                            }
+                        }
+                    });
+
+                    let todosDados = [];
+                    const payload = { variaveis: [...todasVars], varFileMap, agregacao: this.state.agregacao };
+                    if (municipio) payload.municipio = municipio;
+                    else if (uf) payload.uf = uf;
+
+                    const distrito = lerFiltro('NM_DIST');
+                    if (distrito) payload.distrito = distrito;
+                    const subdistrito = lerFiltro('NM_SUBDIST');
+                    if (subdistrito) payload.subdistrito = subdistrito;
+                    const bairro = lerFiltro('NM_BAIRRO');
+                    if (bairro) payload.bairro = bairro;
+                    const comunidade = lerFiltro('NM_FCU');
+                    if (comunidade) payload.comunidade = comunidade;
+                    const nucleoUrbano = lerFiltro('NM_NU');
+                    if (nucleoUrbano) payload.nucleoUrbano = nucleoUrbano;
+                    const aglomerado = lerFiltro('NM_AGLOM');
+                    if (aglomerado) payload.aglomerado = aglomerado;
+                    const situacao = lerFiltro('SITUACAO');
+                    if (situacao) payload.situacao = situacao;
+
+                    const res = await this.authFetch('/api/dados/consultar', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': this.state.token
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    const dados = await res.json();
+                    todosDados = dados;
+
+                    this.state.dados = todosDados;
+                    this.state.dadosFiltrados = todosDados;
+                    this.state.pesquisaRealizada = true;
+
+                    this.paginaAtual = 1;
+                    this.atualizarTabela(todosDados);
+                } catch (err) {
+                    console.error('Erro ao pesquisar:', err);
+                    if (err.message && err.message.includes('Sessão expirada')) return;
+                    container.innerHTML = '<div class="loading" style="color:#d32f2f">Erro ao carregar dados: ' + (err.message || err) + '</div>';
+                } finally {
+                    this.state.carregando = false;
+                    document.querySelectorAll('input[name="agregacao"]').forEach(el => el.disabled = false);
+                }
+            },
+
+            atualizarTabela: function(dados) {
+                const container = document.getElementById('tabela-container');
+                const vars = this.state.varsConsulta;
+                const dadosExibir = dados || [];
+
+                if (dadosExibir.length === 0) {
+                    container.innerHTML = '<div class="loading">Nenhum registro encontrado.</div>';
+                    document.getElementById('contagem-registros').textContent = '0 registros';
+                    return;
+                }
+
+                const isBairro = this.state.agregacao === 'bairro';
+                const colunasGeo = isBairro ? ['NM_BAIRRO', 'NM_MUN', 'NM_UF', 'NM_REGIAO'] : ['NM_MUN', 'NM_UF', 'NM_REGIAO'];
+
+                const colunasVar = vars.map(v => v.codigo.toUpperCase()).filter(c => dadosExibir.some(r => r[c] !== undefined));
+
+                if (colunasVar.length === 0 && vars.length > 0) {
+                    container.innerHTML = '<div class="vazia">⚠️ As variáveis selecionadas não estão disponíveis nos dados carregados.</div>';
+                    document.getElementById('contagem-registros').textContent = dadosExibir.length + ' registros';
+                    return;
+                }
+
+                const todasColunas = colunasGeo.concat(colunasVar);
+                const totalRegistros = dadosExibir.length;
+                document.getElementById('contagem-registros').textContent = totalRegistros + ' ' + (isBairro ? (totalRegistros !== 1 ? 'bairros' : 'bairro') : (totalRegistros !== 1 ? 'municípios' : 'município'));
+                document.getElementById('btn-export').style.display = vars.length > 0 ? 'inline-block' : 'none';
+
+                if (todasColunas.length === 0) {
+                    container.innerHTML = '<div class="vazia"><span class="icone">📋</span><h3>Nenhuma variável selecionada</h3><p>Adicione variáveis usando o catálogo acima.</p></div>';
+                    return;
+                }
+
+                const totalPaginas = Math.ceil(totalRegistros / this.linhasPorPagina);
+                if (this.paginaAtual > totalPaginas) this.paginaAtual = totalPaginas;
+                const inicio = (this.paginaAtual - 1) * this.linhasPorPagina;
+                const fim = Math.min(inicio + this.linhasPorPagina, totalRegistros);
+                const paginaDados = dadosExibir.slice(inicio, fim);
+
+                let html = '<table><thead><tr>';
+                todasColunas.forEach(c => {
+                    const found = vars.find(v => v.codigo.toUpperCase() === c);
+                    const nome = found ? (found.codigo + ' - ' + (found.descricao || found.codigo)) : c;
+                    const isGeo = colunasGeo.includes(c);
+                    html += '<th' + (isGeo ? '' : ' class="num"') + '>' + nome + '</th>';
+                });
+                html += '</tr></thead><tbody>';
+
+                paginaDados.forEach(r => {
+                    html += '<tr>';
+                    todasColunas.forEach(c => {
+                        const val = r[c];
+                        let exibir;
+                        const isGeo = colunasGeo.includes(c);
+                        if (PCT_VARS && PCT_VARS.has(c)) {
+                            const num = +val;
+                            if (!isNaN(num) && val !== '' && val !== null) {
+                                const pct = (num * 100).toFixed(2).replace('.', ',');
+                                exibir = pct + '%';
+                                if (c === 'V00006' && num > 0.20) {
+                                    exibir = '<span title="Alta taxa de imputação (>20%): dados estimados pelo IBGE">⚠️ ' + pct + '%</span>';
+                                } else {
+                                    exibir = pct + '%';
+                                }
+                            } else {
+                                exibir = val || '';
+                            }
+                        } else {
+                            const num = +val;
+                            exibir = (!isNaN(num) && val !== '' && val !== null) ? num.toLocaleString('pt-BR') : (val || '');
+                        }
+                        html += '<td' + (isGeo ? '' : ' class="num"') + '>' + exibir + '</td>';
+                    });
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table>';
+
+                if (totalPaginas > 1) {
+                    html += '<div class="paginacao">';
+                    html += '<button class="btn-peq" onclick="app.irPagina(1)" ' + (this.paginaAtual <= 1 ? 'disabled' : '') + '>«</button>';
+                    html += '<button class="btn-peq" onclick="app.irPagina(' + (this.paginaAtual - 1) + ')" ' + (this.paginaAtual <= 1 ? 'disabled' : '') + '>‹</button>';
+                    html += '<span style="margin:0 12px;font-size:13px;color:#666">Página ' + this.paginaAtual + ' de ' + totalPaginas + ' (' + totalRegistros + ' registros)</span>';
+                    html += '<button class="btn-peq" onclick="app.irPagina(' + (this.paginaAtual + 1) + ')" ' + (this.paginaAtual >= totalPaginas ? 'disabled' : '') + '>›</button>';
+                    html += '<button class="btn-peq" onclick="app.irPagina(' + totalPaginas + ')" ' + (this.paginaAtual >= totalPaginas ? 'disabled' : '') + '>»</button>';
+                    html += '</div>';
+                }
+
+                const hasHighImputacao = dadosExibir.some(r => {
+                    const v = r['V00006'];
+                    return v !== null && v !== undefined && v !== '' && !isNaN(+v) && +v > 0.20;
+                });
+
+                container.innerHTML = html;
+            },
+
+            irPagina: function(pagina) {
+                const dadosExibir = this.state.dadosFiltrados || [];
+                const total = Math.ceil(dadosExibir.length / this.linhasPorPagina);
+                if (pagina < 1 || pagina > total) return;
+                this.paginaAtual = pagina;
+                this.atualizarTabela(this.state.dadosFiltrados);
+            },
+
+            exportarCSV: function() {
+                const isBairro = this.state.agregacao === 'bairro';
+                const dadosExibir = this.state.dadosFiltrados || [];
+                const vars = this.state.varsConsulta;
+                if (dadosExibir.length === 0) return;
+                const colunasGeo = isBairro ? ['NM_BAIRRO', 'NM_MUN', 'NM_UF', 'NM_REGIAO'] : ['NM_MUN', 'NM_UF', 'NM_REGIAO'];
+                const colunasVar = vars.map(v => v.codigo.toUpperCase()).filter(c => dadosExibir.some(r => r[c] !== undefined));
+                const todasColunas = colunasGeo.concat(colunasVar);
+                if (todasColunas.length === 0) return;
+                const separador = ';';
+                let csv = '\uFEFF';
+                csv += todasColunas.join(separador) + '\r\n';
+                dadosExibir.forEach(r => {
+                    const linha = todasColunas.map(c => {
+                        let val = r[c];
+                        if (PCT_VARS && PCT_VARS.has(c)) {
+                            const num = +val;
+                            val = (!isNaN(num) && val !== '' && val !== null) ? (num * 100).toFixed(2) + '%' : '';
+                        }
+                        const str = val !== null && val !== undefined ? String(val).replace(/"/g, '""') : '';
+                        return '"' + str + '"';
+                    });
+                    csv += linha.join(separador) + '\r\n';
+                });
+
+                const hasHighImputacao = dadosExibir.some(r => {
+                    const v = r['V00006'];
+                    return v !== null && v !== undefined && v !== '' && !isNaN(+v) && +v > 0.20;
+                });
+                if (hasHighImputacao) {
+                    csv += '\r\n';
+                    csv += '"--- NOTA TÉCNICA ---"' + '\r\n';
+                    csv += '"Algumas regiões possuem V00006 > 20% (alta taxa de imputação)."' + '\r\n';
+                    csv += '"Isso significa que o IBGE precisou estimar os dados para mais de 20% dos domicílios nessas áreas (fechados/recusa)."' + '\r\n';
+                    csv += '"Os valores de V00005 (média de moradores) e V00006 nestas regiões devem ser interpretados com cautela."' + '\r\n';
+                }
+
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                const dataStr = new Date().toISOString().slice(0, 10);
+                const selUf = document.getElementById('filtro-NM_UF');
+                const uf = selUf ? selUf.value : '';
+                const mun = this.state.municipioSelecionado || uf || 'brasil';
+                const slug = mun.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/(^-|-$)/g, '') || 'brasil';
+                link.download = 'geocenso-municipio-' + slug + '-' + dataStr + '.csv';
+                link.click();
+                URL.revokeObjectURL(link.href);
+            },
+
+            logout: function() {
+                this.state.user = null;
+                this.state.token = null;
+                this.state.dados = [];
+                this.state.dadosFiltrados = [];
+                this.state.varsConsulta = [];
+                this.state.municipioSelecionado = '';
+                this.state.regiaoSelecionada = '';
+                this.state.pesquisaRealizada = false;
+                this.descricoesCache = {};
+                this.paginaAtual = 1;
+                location.hash = '#login';
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => { app.init(); });
+    </script>
+</body>
+</html>
