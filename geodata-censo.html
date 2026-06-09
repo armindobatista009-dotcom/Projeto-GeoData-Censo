@@ -1104,7 +1104,13 @@
                 if (todasColunas.length === 0) return;
                 const separador = ';';
                 let csv = '\uFEFF';
-                csv += todasColunas.join(separador) + '\r\n';
+                const headerNomes = colunasGeo.concat(
+                    colunasVar.map(c => {
+                        const found = vars.find(v => v.codigo.toUpperCase() === c);
+                        return found ? (found.codigo + ' - ' + (found.descricao || found.codigo)) : c;
+                    })
+                );
+                csv += headerNomes.join(separador) + '\r\n';
                 dadosExibir.forEach(r => {
                     const linha = todasColunas.map(c => {
                         let val = r[c];
