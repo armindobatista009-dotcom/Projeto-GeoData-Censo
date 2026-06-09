@@ -608,26 +608,56 @@ app.post('/api/dados/consultar', authMiddleware, async (req, res) => {
         }
 
         // Query CSV data (pass optional varFileMap to disambiguate overlapping vars)
-        const dadosCSV = await consultarDados(variaveis, geoKeys, varFileMap);
+        let dadosCSV = await consultarDados(variaveis, geoKeys, varFileMap);
 
         // Merge with geo info from setores table
         const resultado = [];
-        for (const row of dadosCSV) {
-            if (agregacao === 'bairro') {
-                const cdBairro = row.CD_BAIRRO;
-                if (cdBairro && geoInfo[cdBairro]) {
-                    const g = geoInfo[cdBairro];
+        if (agregacao === 'bairro') {
+            // Separate bairro-level and municipality-level rows
+            const bairroMap = new Map();
+            const munRows = [];
+            for (const row of dadosCSV) {
+                if (row.CD_BAIRRO) {
+                    bairroMap.set(row.CD_BAIRRO, row);
+                } else if (row.CD_MUN) {
+                    munRows.push(row);
+                }
+            }
+
+            // Merge municipality-level data into corresponding bairro rows
+            for (const munRow of munRows) {
+                const cdMun = munRow.CD_MUN;
+                for (const [bk, g] of Object.entries(geoInfo)) {
+                    if (g.CD_MUN === cdMun && bairroMap.has(bk)) {
+                        const bairroRow = bairroMap.get(bk);
+                        for (const [k, v] of Object.entries(munRow)) {
+                            if (k !== 'CD_MUN' && k !== 'NM_MUN' && !(k in bairroRow)) {
+                                bairroRow[k] = v;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Build result from merged bairro rows
+            for (const [bk, row] of bairroMap) {
+                const g = geoInfo[bk];
+                if (g) {
                     resultado.push({
-                        CD_BAIRRO: cdBairro,
+                        CD_BAIRRO: bk,
                         NM_REGIAO: g.NM_REGIAO || null,
                         NM_UF: g.NM_UF || null,
                         NM_MUN: g.NM_MUN || null,
                         NM_BAIRRO: g.NM_BAIRRO || null,
                         ...row
                     });
-                } else {
-                    // Municipality-level row (e.g. PCT data) - expand per bairro
-                    const cdMun = row.CD_MUN;
+                }
+            }
+
+            // If only municipality data (no bairro variables selected), expand per bairro
+            if (bairroMap.size === 0) {
+                for (const munRow of munRows) {
+                    const cdMun = munRow.CD_MUN;
                     for (const [bk, g] of Object.entries(geoInfo)) {
                         if (g.CD_MUN === cdMun) {
                             resultado.push({
@@ -636,12 +666,14 @@ app.post('/api/dados/consultar', authMiddleware, async (req, res) => {
                                 NM_UF: g.NM_UF || null,
                                 NM_MUN: g.NM_MUN || null,
                                 NM_BAIRRO: g.NM_BAIRRO || null,
-                                ...row
+                                ...munRow
                             });
                         }
                     }
                 }
-            } else {
+            }
+        } else {
+            for (const row of dadosCSV) {
                 const cdMun = row.CD_MUN || row.CD_BAIRRO || row.CD_DIST;
                 const g = geoInfo[cdMun] || {};
                 resultado.push({

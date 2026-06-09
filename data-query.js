@@ -472,10 +472,8 @@ async function consultarDados(variaveis, geoKeysList, varFileMap) {
   if (allResults.length === 0) return [];
 
   const merged = new Map();
-  const geoCols = [];
   for (const fileResult of allResults) {
     const geoCol = fileResult.geoCol || 'CD_MUN';
-    geoCols.push(geoCol);
     for (const row of fileResult.rows) {
       const geoKey = row[geoCol];
       if (!geoKey) continue;
@@ -489,32 +487,6 @@ async function consultarDados(variaveis, geoKeysList, varFileMap) {
       } else {
         merged.set(geoKey, { ...row });
       }
-    }
-  }
-
-  // Cross-merge: merge rows from broader geographic levels (CD_MUN) into
-  // more granular rows (CD_BAIRRO, CD_DIST) when they share the same key field
-  // e.g., bairro-level rows contain CD_MUN, so municipality-level data merges in
-  if (geoCols.some(c => c === 'CD_BAIRRO' || c === 'CD_DIST') && geoCols.some(c => c === 'CD_MUN')) {
-    const usedMunKeys = new Set();
-    for (const [geoKey, row] of merged) {
-      if ((row.CD_BAIRRO || row.CD_DIST) && row.CD_MUN) {
-        const munKey = row.CD_MUN;
-        if (merged.has(munKey)) {
-          const munRow = merged.get(munKey);
-          if (!munRow.CD_BAIRRO && !munRow.CD_DIST) {
-            for (const [k, v] of Object.entries(munRow)) {
-              if (k !== 'CD_MUN' && !(k in row)) {
-                row[k] = v;
-              }
-            }
-            usedMunKeys.add(munKey);
-          }
-        }
-      }
-    }
-    for (const k of usedMunKeys) {
-      merged.delete(k);
     }
   }
 
